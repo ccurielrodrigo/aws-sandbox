@@ -51,14 +51,24 @@ jobs:
           username: ${{ secrets.EC2_USERNAME }}
           key: ${{ secrets.EC2_PRIVATE_KEY }}
           script: |
+            echo "Checking and installing Docker if not found"
+            if ! command -v docker &> /dev/null; then
+              echo "Docker not found. Installing Docker..."
+              sudo apt update
+              sudo apt install -y docker.io
+              sudo systemctl start docker
+              sudo systemctl enable docker
+              sudo usermod -aG docker $USER  # Allow non-root docker usage
+              newgrp docker
+            fi
             echo "Stopping existing Docker container (if any)"
-            docker stop webapp || true
+            sudo docker stop webapp || true
             echo "Removing existing Docker container (if any)"
-            docker rm webapp || true
+            sudo docker rm webapp || true
             echo "Pulling new Docker image from DockerHub"
-            docker pull ${{ secrets.DOCKER_USERNAME }}/webapp:${{ github.sha }}
+            sudo docker pull ${{ secrets.DOCKER_USERNAME }}/webapp:${{ github.sha }}
             echo "Running new Docker container with the latest image"
-            docker run -d --name webapp -p 80:80 ${{ secrets.DOCKER_USERNAME }}/webapp:${{ github.sha }}
-          continue-on-error: false  # Fail if any deployment step fails
+            sudo docker run -d --name webapp -p 80:80 ${{ secrets.DOCKER_USERNAME }}/webapp:${{ github.sha }}
+          continue-on-error: false
         env:
           SSH_KNOWN_HOSTS: ${{ secrets.EC2_HOST }}  # Optional, for additional security with known hosts file
