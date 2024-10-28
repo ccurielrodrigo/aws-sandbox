@@ -1,0 +1,64 @@
+name: Docker CI/CD Pipeline
+
+on:
+  workflow_dispatch:  # Allows manual triggering of the workflow
+
+jobs:
+  build-test-deploy:
+    runs-on: ubuntu-latest  # Changed to use GitHub-hosted runner
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+        with:
+          verbose: true
+      - name: Log Git Commit Information
+        run: |
+          echo "Commit SHA: ${{ github.sha }}"
+          echo "Commit Message: ${{ github.event.head_commit.message }}"
+          echo "Branch: ${{ github.ref_name }}"
+
+      - name: Login to DockerHub
+        uses: docker/login-action@v1
+        with: 
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+      - name: Verify Docker Login
+        run: docker info
+        continue-on-error: false  # Fail if Docker login is unsuccessful
+      - name: Display DockerHub Environment Variables
+        run: |
+          echo "DockerHub Username: ${{ secrets.DOCKER_USERNAME }}"
+          echo "DockerHub Token (obscured): ********"
+
+      - name: Build Docker Image
+        uses: docker/build-push-action@v2
+        with:
+          context: .
+          push: true
+          tags: ccurielrodrigo/webapp:${{ github.sha }}
+        env:
+          BUILDKIT_PROGRESS: plain  # Increases verbosity for the Docker build process
+
+      - name: Verify Docker Image Build and Push
+        run: docker images
+        continue-on-error: false  # Ensure build and push succeeded
+
+      - name: Deploy to EC2 Instance
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USERNAME }}
+          key: ${{ secrets.EC2_PRIVATE_KEY }}
+          script: |
+            echo "Stopping existing Docker container (if any)"
+            docker stop webapp || true
+            echo "Removing existing Docker container (if any)"
+            docker rm webapp || true
+            echo "Pulling new Docker image from DockerHub"
+            docker pull ${{ secrets.DOCKER_USERNAME }}/webapp:${{ github.sha }}
+            echo "Running new Docker container with the latest image"
+            docker run -d --name webapp -p 80:80 ${{ secrets.DOCKER_USERNAME }}/webapp:${{ github.sha }}
+          continue-on-error: false  # Fail if any deployment step fails
+        env:
+          SSH_KNOWN_HOSTS: ${{ secrets.EC2_HOST }}  # Optional, for additional security with known hosts file
