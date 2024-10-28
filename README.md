@@ -1,10 +1,6 @@
-Here’s the requested README content and comments for the GitHub Actions workflow:
-
----
 
 ### README (raw code)
 
-```markdown
 # EC2 Container Deployment Showcase
 
 This project demonstrates how to deploy a containerized application to an EC2 instance. It includes a GitHub Actions workflow that automates the deployment process when changes are pushed to a specific branch.
